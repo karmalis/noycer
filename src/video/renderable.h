@@ -18,7 +18,8 @@ struct renderable_2d_mesh {
     Shader shader;
 };
 
-Render2DMesh create_2d_mesh(const float* data, int data_len, const char* vs, const char* fs, const char* tex);
+Render2DMesh create_2d_mesh(const float* mesh_data, int data_len, const char* vs, const char* fs, const char* tex);
+Render2DMesh create_2d_mesh_with_texture(const float* mesh_data, int data_len, const char* vs, const char* fs, uint8_t* texture_data,  int tex_width, int tex_height, int nr_components);
 
 void render_2d_mesh(Render2DMesh* mesh);
 

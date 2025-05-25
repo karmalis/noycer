@@ -19,6 +19,13 @@
 
 #include "dgui.h"
 
+#include "iperlin.h"
+
+#define DEFAULT_NOISE_OCTAVES 8;
+#define DEFAULT_NOISE_PER 0.75;
+#define DEFAULT_NOISE_BASE_FREQ 0.00095;
+#define DEFAULT_NOISE_BASE_AMP 0.5;
+
 const GLuint WIDTH = 1200, HEIGHT = 800;
 
 GLuint g_curr_width = WIDTH;
@@ -68,6 +75,33 @@ const float sprite_vertices[] = {
 
 const uint32_t indices[] = {0, 1, 3, 1, 2, 3};
 
+// Pixel noise state
+struct noise_state {
+    int octaves;
+    double per;
+    double bfreq;
+    double bamp;
+};
+
+// Overwrites
+void generate_noise(int width, int height, double depth, struct noise_state* noise, uint8_t* pixels) {
+ for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            size_t index = (size_t)(y*width + x) * 3;
+            double n_v = octave_iperlin_at(
+                (double) x, (double) y, depth,
+                noise->octaves,
+                noise->per,
+                noise->bfreq,
+                noise->bamp);
+            uint8_t val = (uint8_t)((n_v * 0.5 + 0.5) * 255.0);
+            pixels[index] = val;
+            pixels[index+1] = val;
+            pixels[index+2] = val;
+        }
+    }
+
+}
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action,
                   int mode) {
@@ -191,12 +225,29 @@ int main(void) {
   }
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+  uint8_t* noise_pixels = (uint8_t*) malloc((size_t)(g_curr_width * g_curr_height * 3));
+  struct noise_state noise = {0};
+  noise.octaves = DEFAULT_NOISE_OCTAVES;
+  noise.per = DEFAULT_NOISE_PER;
+  noise.bfreq = DEFAULT_NOISE_BASE_FREQ;
+  noise.bamp = DEFAULT_NOISE_BASE_AMP;
+
+  double depth = 0.0;
+
+  generate_noise(g_curr_width, g_curr_height, depth, &noise, noise_pixels);
+    /* glBindTexture(GL_TEXTURE_2D, mesh.texture.id); */
+    /* glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, g_curr_width, g_curr_height, 0, GL_RGB, GL_UNSIGNED_BYTE, noise_pixels); */
+    /* glBindTexture(GL_TEXTURE_2D, 0); */
+
+
   /// Shaders
   /// -------
   Shader d_shader = create_shader("shaders/basic.vert", "shaders/basic.frag");
   Shader s_shader = create_shader("shaders/screen.vert", "shaders/screen.frag");
 
-  Render2DMesh mesh = create_2d_mesh(&sprite_vertices[0], sizeof(sprite_vertices), "shaders/sprite.vert", "shaders/sprite.frag", "res/images/mualogo_400x400.png");
+  //Render2DMesh mesh = create_2d_mesh(&sprite_vertices[0], sizeof(sprite_vertices), "shaders/sprite.vert", "shaders/sprite.frag", "res/images/mualogo_400x400.png");
+  Render2DMesh mesh = create_2d_mesh_with_texture(&sprite_vertices[0],sizeof(sprite_vertices), "shaders/sprite.vert", "shaders/sprite.frag", noise_pixels, g_curr_width, g_curr_height, 3);
+
 
   glUseProgram(s_shader.program);
   shader_uniform1i(&s_shader, "screenTexture", 0);
@@ -206,11 +257,12 @@ int main(void) {
 
   int frame_count = 0;
 
+
   /// Core loop
   /// ---------
   while (!glfwWindowShouldClose(window)) {
-
     glm_ortho(0.0f, (float)g_curr_width, (float)g_curr_height, 0.0f, -1.0f, 1.0f, projection);
+
 
     glfwPollEvents();
     dgui_update();
@@ -224,9 +276,13 @@ int main(void) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     mat4 model;
     glm_mat4_identity(model);
-    vec3 translate_pos = { (float)g_curr_width / 2.0f, (float)g_curr_height / 2.0f, 0.0f };
+    //vec3 translate_pos = { (float)g_curr_width / 2.0f, (float)g_curr_height / 2.0f, 0.0f };
+    vec3 translate_pos = { 0.0, 0.0 };
+
     glm_translate(model, translate_pos);
     vec3 scale_factor = { (float)mesh.texture.width, (float)mesh.texture.height, 1.0f };
+    //vec3 scale_factor = { g_curr_width, g_curr_height };
+
     glm_scale(model, scale_factor);
 
     glUseProgram(mesh.shader.program);
@@ -234,9 +290,9 @@ int main(void) {
     shader_uniform_matrix4fv(&mesh.shader, "projection", projection);
 
     vec3 col;
-    col[0] = 0.7f;
-    col[1] = 0.2f;
-    col[2] = 0.2f;
+    col[0] = 1.0f;
+    col[1] = 1.0f;
+    col[2] = 1.0f;
     shader_uniform3fv(&mesh.shader, "spriteColor", col);
 
     glActiveTexture(GL_TEXTURE0);
