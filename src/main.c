@@ -10,6 +10,7 @@
 #include "video/shader.h"
 #include "video/model.h"
 #include "video/renderable.h"
+#include "video/framebuffer.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -17,7 +18,7 @@
 #include "base/base.h"
 #include "base/util.h"
 
-#include "dgui.h"
+#include "dgui/dgui.h"
 
 #include "iperlin.h"
 
@@ -31,23 +32,6 @@ const GLuint WIDTH = 1200, HEIGHT = 800;
 GLuint g_curr_width = WIDTH;
 GLuint g_curr_height = HEIGHT;
 
-/* const float vertices[] = { */
-/*     0.5f,  0.5f,  0.0f, // top right */
-/*     0.5f,  -0.5f, 0.0f, // bottom right */
-/*     -0.5f, -0.5f, 0.0f, // bottom left */
-/*     -0.5f, 0.5f,  0.0f  // top left */
-/* }; */
-
-/* const float vertices[] = { */
-/*     // positions */
-/*     -.5f,  .5f,  0.0f, // Top-left */
-/*     -.5f, -.5f,  0.0f, // Bottom-left */
-/*      .5f, -.5f,  0.0f, // Bottom-right */
-
-/*     -.5f,  .5f,  0.0f, // Top-left */
-/*      .5f, -.5f,  0.0f, // Bottom-right */
-/*      .5f,  .5f,  0.0f  // Top-right */
-/* }; */
 
 const float vertices[] = {
     // Triangle 1
@@ -169,21 +153,6 @@ int main(void) {
   dgui dgui = {0};
   dgui_init(window, &dgui);
 
-  /// Initialise resources (buffers and items)
-  /// ----------------------------------------
-  uint32_t VAO;
-  glGenVertexArrays(1, &VAO);
-
-  uint32_t VBO;
-  glGenBuffers(1, &VBO);
-
-  glBindVertexArray(VAO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
-  glEnableVertexAttribArray(0);
-  glBindVertexArray(0);
-
   // screen quad object init
   // -----------------------
   model_t screen_quad_model = screen_quad();
@@ -201,29 +170,7 @@ int main(void) {
 
   /// Framebuffer
   /// -----------
-  uint32_t frame_buffer;
-  glGenFramebuffers(1, &frame_buffer);
-  glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer);
-
-  uint32_t tex_color_buffer;
-  glGenTextures(1, &tex_color_buffer);
-  glBindTexture(GL_TEXTURE_2D, tex_color_buffer);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WIDTH, HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_color_buffer, 0);
-
-  uint32_t RBO;
-  glGenRenderbuffers(1, &RBO);
-  glBindRenderbuffer(GL_RENDERBUFFER, RBO);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WIDTH, HEIGHT);
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
-  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-    error_print("Framebuffer incomplete");
-  }
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  Framebuffer fbuffer = framebuffer_create(g_curr_width, g_curr_height);
 
   uint8_t* noise_pixels = (uint8_t*) malloc((size_t)(g_curr_width * g_curr_height * 3));
   struct noise_state noise = {0};
@@ -235,10 +182,6 @@ int main(void) {
   double depth = 0.0;
 
   generate_noise(g_curr_width, g_curr_height, depth, &noise, noise_pixels);
-    /* glBindTexture(GL_TEXTURE_2D, mesh.texture.id); */
-    /* glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, g_curr_width, g_curr_height, 0, GL_RGB, GL_UNSIGNED_BYTE, noise_pixels); */
-    /* glBindTexture(GL_TEXTURE_2D, 0); */
-
 
   /// Shaders
   /// -------
@@ -268,9 +211,8 @@ int main(void) {
     dgui_update();
 
     // first pass
-    // ----------
-    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer);
-    glEnable(GL_DEPTH_TEST);
+    // ---------
+    framebuffer_enable(&fbuffer);
 
     glClearColor(0.13f, 0.14f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -301,15 +243,13 @@ int main(void) {
 
     glDisable(GL_STENCIL_TEST); // Explicitly disable stencil test
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    render_2d_mesh(&mesh);
-
-    glDepthFunc(GL_LEQUAL);
+    r2d_mesh_render(&mesh);
 
     /// It is possible to setup a key press check in the coer loop as well
 
     // second pass
     // -----------
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    framebuffer_disable(&fbuffer);
     glViewport(0, 0, g_curr_width, g_curr_height);    // Set viewport to FBO dimensions
 
     glDisable(GL_SCISSOR_TEST);
@@ -322,7 +262,7 @@ int main(void) {
     glBindVertexArray(screen_vao);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex_color_buffer);
+    glBindTexture(GL_TEXTURE_2D, fbuffer.texture_color_buffer);
     shader_uniform1i(&s_shader, "screenTexture", 0);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -333,17 +273,17 @@ int main(void) {
     frame_count++;
   }
 
-  glDeleteVertexArrays(1, &VAO);
   glDeleteVertexArrays(1, &screen_vao);
-  glDeleteBuffers(1, &VBO);
   glDeleteBuffers(1, &screen_vbo);
-  glDeleteRenderbuffers(1, &RBO);
-  glDeleteFramebuffers(1, &frame_buffer);
+
+  framebuffer_release(&fbuffer);
 
   dgui_terminate(&dgui);
 
   release_shader(&d_shader);
   release_shader(&s_shader);
+
+  r2d_mesh_release(&mesh);
 
   /// Cleanup
   /// -------

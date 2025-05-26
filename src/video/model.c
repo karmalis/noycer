@@ -83,28 +83,45 @@ float fixed_screen_quad[] = {
      1.0f,  1.0f,          1.0f, 1.0f   // Top-right
 };
 
+float sprite_vertices[] = {
+    // Positions    // Texture Coords
+    0.0f, 1.0f,     0.0f, 1.0f, // Top-left
+    1.0f, 0.0f,     1.0f, 0.0f, // Bottom-right
+    0.0f, 0.0f,     0.0f, 0.0f, // Bottom-left
 
+    0.0f, 1.0f,     0.0f, 1.0f, // Top-left
+    1.0f, 1.0f,     1.0f, 1.0f, // Top-right
+    1.0f, 0.0f,     1.0f, 0.0f  // Bottom-right
+};
 
-model_t cube() {
-    model_t model = {0};
+Model model_cube() {
+    Model model = {0};
     model.vertices = &cube_vertices[0];
     model.size = sizeof(cube_vertices);
 
     return model;
 }
 
-model_t plane() {
-    model_t model = {0};
+Model model_plane() {
+    Model model = {0};
     model.vertices = &plane_vertices[0];
     model.size = sizeof(plane_vertices);
 
     return model;
 }
 
-model_t screen_quad() {
-    model_t model = {0};
+Model model_screen_quad() {
+    Model model = {0};
     model.vertices = &fixed_screen_quad[0];
     model.size = sizeof(fixed_screen_quad);
+
+    return model;
+}
+
+Model model_sprite() {
+    Model model = {0};
+    model.vertices = &sprite_vertices[0];
+    model.size = sizeof(sprite_vertices);
 
     return model;
 }

@@ -2,14 +2,15 @@
 #define MODEL_H_
 
 #include <stddef.h>
-typedef struct model model_t;
+typedef struct model Model;
 struct model {
     float* vertices;
     size_t size;
 };
 
-model_t cube();
-model_t plane();
-model_t screen_quad();
+Model model_cube();
+Model model_plane();
+Model model_screen_quad();
+Model model_sprite();
 
 #endif // MODEL_H_

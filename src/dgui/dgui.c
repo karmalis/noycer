@@ -28,7 +28,7 @@ void dgui_update() {
     igButton("TestB", (struct ImVec2){0,0});
     igEnd();
 
-    igShowDemoWindow(NULL);
+ //   igShowDemoWindow(NULL);
 }
 
 void dgui_terminate(dgui* gui) {
