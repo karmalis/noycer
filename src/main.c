@@ -20,7 +20,8 @@
 
 #include "dgui/dgui.h"
 
-#include "iperlin.h"
+//#include "iperlin.h"
+#include "experiments/iperlin/iperlin_control.h"
 
 #define DEFAULT_NOISE_OCTAVES 8;
 #define DEFAULT_NOISE_PER 0.75;
@@ -45,17 +46,6 @@ const float vertices[] = {
     -1.0f,  1.0f, 0.0f  // top left
 };
 
-const float sprite_vertices[] = {
-    // Positions    // Texture Coords
-    0.0f, 1.0f,     0.0f, 1.0f, // Top-left
-    1.0f, 0.0f,     1.0f, 0.0f, // Bottom-right
-    0.0f, 0.0f,     0.0f, 0.0f, // Bottom-left
-
-    0.0f, 1.0f,     0.0f, 1.0f, // Top-left
-    1.0f, 1.0f,     1.0f, 1.0f, // Top-right
-    1.0f, 0.0f,     1.0f, 0.0f  // Bottom-right
-};
-
 
 const uint32_t indices[] = {0, 1, 3, 1, 2, 3};
 
@@ -67,25 +57,6 @@ struct noise_state {
     double bamp;
 };
 
-// Overwrites
-void generate_noise(int width, int height, double depth, struct noise_state* noise, uint8_t* pixels) {
- for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            size_t index = (size_t)(y*width + x) * 3;
-            double n_v = octave_iperlin_at(
-                (double) x, (double) y, depth,
-                noise->octaves,
-                noise->per,
-                noise->bfreq,
-                noise->bamp);
-            uint8_t val = (uint8_t)((n_v * 0.5 + 0.5) * 255.0);
-            pixels[index] = val;
-            pixels[index+1] = val;
-            pixels[index+2] = val;
-        }
-    }
-
-}
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action,
                   int mode) {
@@ -155,7 +126,7 @@ int main(void) {
 
   // screen quad object init
   // -----------------------
-  model_t screen_quad_model = screen_quad();
+  Model screen_quad_model = model_screen_quad();
   uint32_t screen_vao, screen_vbo;
   glGenVertexArrays(1, &screen_vao);
   glGenBuffers(1, &screen_vbo);
@@ -188,10 +159,6 @@ int main(void) {
   Shader d_shader = create_shader("shaders/basic.vert", "shaders/basic.frag");
   Shader s_shader = create_shader("shaders/screen.vert", "shaders/screen.frag");
 
-  //Render2DMesh mesh = create_2d_mesh(&sprite_vertices[0], sizeof(sprite_vertices), "shaders/sprite.vert", "shaders/sprite.frag", "res/images/mualogo_400x400.png");
-  Render2DMesh mesh = create_2d_mesh_with_texture(&sprite_vertices[0],sizeof(sprite_vertices), "shaders/sprite.vert", "shaders/sprite.frag", noise_pixels, g_curr_width, g_curr_height, 3);
-
-
   glUseProgram(s_shader.program);
   shader_uniform1i(&s_shader, "screenTexture", 0);
   glUseProgram(0);
@@ -200,6 +167,7 @@ int main(void) {
 
   int frame_count = 0;
 
+  iperlin_control_setup(g_curr_width, g_curr_height);
 
   /// Core loop
   /// ---------
@@ -216,34 +184,8 @@ int main(void) {
 
     glClearColor(0.13f, 0.14f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    mat4 model;
-    glm_mat4_identity(model);
-    //vec3 translate_pos = { (float)g_curr_width / 2.0f, (float)g_curr_height / 2.0f, 0.0f };
-    vec3 translate_pos = { 0.0, 0.0 };
 
-    glm_translate(model, translate_pos);
-    vec3 scale_factor = { (float)mesh.texture.width, (float)mesh.texture.height, 1.0f };
-    //vec3 scale_factor = { g_curr_width, g_curr_height };
-
-    glm_scale(model, scale_factor);
-
-    glUseProgram(mesh.shader.program);
-    shader_uniform_matrix4fv(&mesh.shader, "model", model);
-    shader_uniform_matrix4fv(&mesh.shader, "projection", projection);
-
-    vec3 col;
-    col[0] = 1.0f;
-    col[1] = 1.0f;
-    col[2] = 1.0f;
-    shader_uniform3fv(&mesh.shader, "spriteColor", col);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, mesh.texture.id);
-    shader_uniform1i(&mesh.shader, "spriteTexture", 0);
-
-    glDisable(GL_STENCIL_TEST); // Explicitly disable stencil test
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    r2d_mesh_render(&mesh);
+    iperlin_control_render(projection);
 
     /// It is possible to setup a key press check in the coer loop as well
 
@@ -273,6 +215,8 @@ int main(void) {
     frame_count++;
   }
 
+  iperlin_control_shutdown();
+
   glDeleteVertexArrays(1, &screen_vao);
   glDeleteBuffers(1, &screen_vbo);
 
@@ -283,7 +227,6 @@ int main(void) {
   release_shader(&d_shader);
   release_shader(&s_shader);
 
-  r2d_mesh_release(&mesh);
 
   /// Cleanup
   /// -------
